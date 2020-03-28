@@ -267,7 +267,7 @@ class MarkdownPersonCompletionItemProvider implements CompletionItemProvider {
   }
 }
 
-class MarkdownTagCompletionItemProvider implements CompletionItemProvider {
+class MarkdownProjectCompletionProvider implements CompletionItemProvider {
   public async provideCompletionItems(
     document: TextDocument,
     position: Position,
@@ -275,8 +275,8 @@ class MarkdownTagCompletionItemProvider implements CompletionItemProvider {
     context: CompletionContext
   ) {
     // regex to match tags
-    const tagRegex = new RegExp('(#|\\+)([\\w\\-\\_]+)', 'g');
-    const incompleteTagRegex = new RegExp('(#|\\+)([\\w\\-\\_]*)', 'g');
+    const tagRegex = new RegExp('(\\+)([\\w\\-\\_]+)', 'g');
+    const incompleteTagRegex = new RegExp('(\\+)([\\w\\-\\_]*)', 'g');
     // get the range of the current tag autocomplete
     const range = document.getWordRangeAtPosition(position, incompleteTagRegex);
     // if not in a tag we're done
@@ -315,7 +315,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerCompletionItemProvider(md, new MarkdownPersonCompletionItemProvider())
   );
   context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(md, new MarkdownTagCompletionItemProvider())
+    vscode.languages.registerCompletionItemProvider(md, new MarkdownProjectCompletionProvider())
   );
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(md, new MarkdownDefinitionProvider())
