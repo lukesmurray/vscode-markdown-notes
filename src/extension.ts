@@ -80,7 +80,7 @@ function getContextWord(document: TextDocument, position: Position): ContextWord
         type: ContextWordType.WikiLink,
         word: contextWord.replace(/^\[+/, ''),
         // TODO: paramaterize extensions. Add $ to end?
-        hasExtension: !!contextWord.match(/\.(md|markdwon)/i),
+        hasExtension: !!contextWord.match(/\.(md|markdown)/i),
       };
     }
   }
@@ -231,8 +231,78 @@ function newNote(context: vscode.ExtensionContext) {
   );
 }
 
+
+class MarkdownPersonCompletionItemProvider implements CompletionItemProvider {
+  public async provideCompletionItems(
+    document: TextDocument,
+    position: Position,
+    _token: CancellationToken,
+    context: CompletionContext
+  ) {
+    // regex to match people
+    const personRegex = new RegExp('(?:\\s|^)(@)([\\w\\-\\_]+)', 'g');
+    const incompletePersonRegex = new RegExp('(?:\\s|^)(@)([\\w\\-\\_]*)', 'g');
+    // get the range of the current person autocomplete
+    const range = document.getWordRangeAtPosition(position, incompletePersonRegex);
+    // if not in a person we're done
+    if (range === undefined) {
+      return undefined;
+    }
+
+    const currentLineNumber = position.line;
+    const currentCharacterOffset = position.character;
+    // create a set of these people
+    const people = new Set<string>();
+    // iterate over lines to create the set
+    for(let lineNumber = 0; lineNumber < document.lineCount; lineNumber++) {
+      const line = document.lineAt(lineNumber);
+      const lineText = lineNumber !== currentLineNumber ? line.text :
+        line.text.slice(0, range.start.character) + line.text.slice(range.end.character);
+      let match;
+      while ((match = personRegex.exec(lineText)) !== null) {
+        people.add(match[2]);
+      }
+    }
+    return [...people].sort().map(person => new CompletionItem(person, CompletionItemKind.Value));
+  }
+}
+
+class MarkdownTagCompletionItemProvider implements CompletionItemProvider {
+  public async provideCompletionItems(
+    document: TextDocument,
+    position: Position,
+    _token: CancellationToken,
+    context: CompletionContext
+  ) {
+    // regex to match tags
+    const tagRegex = new RegExp('(#|\\+)([\\w\\-\\_]+)', 'g');
+    const incompleteTagRegex = new RegExp('(#|\\+)([\\w\\-\\_]*)', 'g');
+    // get the range of the current tag autocomplete
+    const range = document.getWordRangeAtPosition(position, incompleteTagRegex);
+    // if not in a tag we're done
+    if (range === undefined) {
+      return undefined;
+    }
+
+    const currentLineNumber = position.line;
+    const currentCharacterOffset = position.character;
+    const tags = new Set<string>();
+    // iterate over lines to create the set
+    for(let lineNumber = 0; lineNumber < document.lineCount; lineNumber++) {
+      const line = document.lineAt(lineNumber);
+      const lineText = lineNumber !== currentLineNumber ? line.text :
+        line.text.slice(0, range.start.character) + line.text.slice(range.end.character);
+      let match;
+      while ((match = tagRegex.exec(lineText)) !== null) {
+        tags.add(match[2]);
+      }
+    }
+    return [...tags].sort().map(tag => new CompletionItem(tag, CompletionItemKind.Value));
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
-  // console.debug('vscode-markdown-notes.activate');
+  console.debug('vscode-markdown-notes.activate');
   const md = { scheme: 'file', language: 'markdown' };
   vscode.languages.setLanguageConfiguration('markdown', { wordPattern: /([\#\.\/\\\w_]+)/ });
 
@@ -240,6 +310,12 @@ export function activate(context: vscode.ExtensionContext) {
   // const triggerCharacters = [];
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(md, new MarkdownFileCompletionItemProvider())
+  );
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(md, new MarkdownPersonCompletionItemProvider())
+  );
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(md, new MarkdownTagCompletionItemProvider())
   );
   context.subscriptions.push(
     vscode.languages.registerDefinitionProvider(md, new MarkdownDefinitionProvider())
