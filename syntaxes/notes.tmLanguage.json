@@ -19,7 +19,7 @@
       }
     },
     {
-      "match": "(\\#)([\\w\\-\\_]+)",
+      "match": "(\\#|\\+)([\\w\\-\\_]+)",
       "name": "text.markdown.notes.tag",
       "captures": {
         "1": {
@@ -53,7 +53,7 @@
           "name": "punctuation.definition.tag"
         },
         "2": {
-          "name": "string.other.text.markdown.notes.person.name"
+          "name": "support.variable.markdown.notes.person.name"
         }
       }
     }
