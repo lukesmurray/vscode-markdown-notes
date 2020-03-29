@@ -1,6 +1,6 @@
-import * as vscode from 'vscode';
-import { basename, dirname, join, normalize, relative, resolve } from 'path';
-import { existsSync, writeFileSync } from 'fs';
+import * as vscode from "vscode";
+import { basename, dirname, join, normalize, relative, resolve } from "path";
+import { existsSync, writeFileSync } from "fs";
 import {
   CompletionItemProvider,
   TextDocument,
@@ -10,19 +10,19 @@ import {
   workspace,
   CompletionItem,
   CompletionItemKind,
-  Uri,
-} from 'vscode';
+  Uri
+} from "vscode";
 
 function workspaceFilenameConvention(): string | undefined {
-  let cfg = vscode.workspace.getConfiguration('vscodeMarkdownNotes');
-  return cfg.get('workspaceFilenameConvention');
+  let cfg = vscode.workspace.getConfiguration("vscodeMarkdownNotes");
+  return cfg.get("workspaceFilenameConvention");
 }
 function useUniqueFilenames(): boolean {
-  return workspaceFilenameConvention() == 'uniqueFilenames';
+  return workspaceFilenameConvention() == "uniqueFilenames";
 }
 
 function useRelativePaths(): boolean {
-  return workspaceFilenameConvention() == 'relativePaths';
+  return workspaceFilenameConvention() == "relativePaths";
 }
 
 function filenameForConvention(uri: Uri, fromDocument: TextDocument): string {
@@ -39,7 +39,7 @@ function filenameForConvention(uri: Uri, fromDocument: TextDocument): string {
 enum ContextWordType {
   Null, // 0
   WikiLink, // 1
-  Tag, // 2
+  Tag // 2
 }
 
 interface ContextWord {
@@ -48,9 +48,16 @@ interface ContextWord {
   hasExtension: boolean | null;
 }
 
-const NULL_CONTEXT_WORD = { type: ContextWordType.Null, word: '', hasExtension: null };
+const NULL_CONTEXT_WORD = {
+  type: ContextWordType.Null,
+  word: "",
+  hasExtension: null
+};
 
-function getContextWord(document: TextDocument, position: Position): ContextWord {
+function getContextWord(
+  document: TextDocument,
+  position: Position
+): ContextWord {
   let contextWord: string;
   let regex: RegExp;
   let range: vscode.Range | undefined;
@@ -63,8 +70,8 @@ function getContextWord(document: TextDocument, position: Position): ContextWord
     if (contextWord) {
       return {
         type: ContextWordType.Tag,
-        word: contextWord.replace(/^\#+/, ''),
-        hasExtension: null,
+        word: contextWord.replace(/^\#+/, ""),
+        hasExtension: null
       };
     }
   }
@@ -78,9 +85,9 @@ function getContextWord(document: TextDocument, position: Position): ContextWord
     if (contextWord) {
       return {
         type: ContextWordType.WikiLink,
-        word: contextWord.replace(/^\[+/, ''),
+        word: contextWord.replace(/^\[+/, ""),
         // TODO: paramaterize extensions. Add $ to end?
-        hasExtension: !!contextWord.match(/\.(md|markdown)/i),
+        hasExtension: !!contextWord.match(/\.(md|markdown)/i)
       };
     }
   }
@@ -102,9 +109,9 @@ class MarkdownFileCompletionItemProvider implements CompletionItemProvider {
       return [];
     }
 
-    let files = (await workspace.findFiles('**/*')).filter(
+    let files = (await workspace.findFiles("**/*")).filter(
       // TODO: paramaterize extensions. Add $ to end?
-      f => f.scheme == 'file' && f.path.match(/\.(md|markdown)/i)
+      f => f.scheme == "file" && f.path.match(/\.(md|markdown)/i)
     );
     let items = files.map(f => {
       let kind = CompletionItemKind.File;
@@ -150,7 +157,7 @@ class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
     if (useUniqueFilenames()) {
       const filename = selectedWord;
       // there should be exactly 1 file with name = selecteWord
-      files = (await workspace.findFiles('**/*')).filter(f => {
+      files = (await workspace.findFiles("**/*")).filter(f => {
         return basename(f.path) == filename;
       });
     }
@@ -176,26 +183,26 @@ function newNote(context: vscode.ExtensionContext) {
   const inputBoxPromise = vscode.window.showInputBox({
     prompt:
       "Enter a 'Title Case Name' to create `title-case-name.md` with '# Title Case Name' at the top.",
-    value: '',
+    value: ""
   });
 
-  let workspaceUri = '';
+  let workspaceUri = "";
   if (vscode.workspace.workspaceFolders) {
     workspaceUri = vscode.workspace.workspaceFolders[0].uri.path.toString();
   }
 
   inputBoxPromise.then(
     noteName => {
-      if (noteName == null || !noteName || noteName.replace(/\s+/g, '') == '') {
+      if (noteName == null || !noteName || noteName.replace(/\s+/g, "") == "") {
         // console.debug('Abort: noteName was empty.');
         return false;
       }
 
       const filename =
         noteName
-          .replace(/\W+/gi, '-') // non-words to hyphens
+          .replace(/\W+/gi, "-") // non-words to hyphens
           .toLowerCase() // lower
-          .replace(/-*$/, '') + '.md'; // removing trailing '-' chars, add extension
+          .replace(/-*$/, "") + ".md"; // removing trailing '-' chars, add extension
       const filepath = join(workspaceUri, filename);
 
       const fileAlreadyExists = existsSync(filepath);
@@ -209,7 +216,7 @@ function newNote(context: vscode.ExtensionContext) {
       vscode.window
         .showTextDocument(vscode.Uri.file(filepath), {
           preserveFocus: false,
-          preview: false,
+          preview: false
         })
         .then(() => {
           // if we created a new file, hop to line #3
@@ -225,12 +232,52 @@ function newNote(context: vscode.ExtensionContext) {
         });
     },
     err => {
-      vscode.window.showErrorMessage('Error creating new note.');
+      vscode.window.showErrorMessage("Error creating new note.");
       // console.error(err);
     }
   );
 }
 
+function MetaDataProvideCompletionItemsHelper(
+  document: TextDocument,
+  position: Position,
+  tagRegex: RegExp,
+  incompleteTagRegex: RegExp,
+  matchGroup: number
+) {
+  // get the range of the current tag autocomplete
+  const range = document.getWordRangeAtPosition(position, incompleteTagRegex);
+  // if not in a tag we're done
+  if (range === undefined) {
+    return undefined;
+  }
+
+  const currentLineNumber = position.line;
+  const tags = new Set<string>();
+  // iterate over lines to create the set
+  for (let lineNumber = 0; lineNumber < document.lineCount; lineNumber++) {
+    const line = document.lineAt(lineNumber);
+    // slice out the current range from the extraction text
+    const lineText =
+      lineNumber !== currentLineNumber
+        ? line.text
+        : line.text.slice(0, range.start.character) +
+          line.text.slice(range.end.character);
+    let match;
+    while ((match = tagRegex.exec(lineText)) !== null) {
+      tags.add(match[matchGroup]);
+    }
+  }
+
+  const hasWhiteSpaceAfter = /\s/.test(
+    document.lineAt(range.end.line).text.charAt(range.end.character)
+  );
+  return [...tags].sort().map(tag => {
+    const completionItem = new CompletionItem(tag, CompletionItemKind.Value);
+    completionItem.insertText = tag + (hasWhiteSpaceAfter ? "" : " ");
+    return completionItem;
+  });
+}
 
 class MarkdownPersonCompletionItemProvider implements CompletionItemProvider {
   public async provideCompletionItems(
@@ -239,31 +286,16 @@ class MarkdownPersonCompletionItemProvider implements CompletionItemProvider {
     _token: CancellationToken,
     context: CompletionContext
   ) {
-    // regex to match people
-    const personRegex = new RegExp('(?:\\s|^)(@)([\\w\\-\\_]+)', 'g');
-    const incompletePersonRegex = new RegExp('(?:\\s|^)(@)([\\w\\-\\_]*)', 'g');
-    // get the range of the current person autocomplete
-    const range = document.getWordRangeAtPosition(position, incompletePersonRegex);
-    // if not in a person we're done
-    if (range === undefined) {
-      return undefined;
-    }
-
-    const currentLineNumber = position.line;
-    const currentCharacterOffset = position.character;
-    // create a set of these people
-    const people = new Set<string>();
-    // iterate over lines to create the set
-    for(let lineNumber = 0; lineNumber < document.lineCount; lineNumber++) {
-      const line = document.lineAt(lineNumber);
-      const lineText = lineNumber !== currentLineNumber ? line.text :
-        line.text.slice(0, range.start.character) + line.text.slice(range.end.character);
-      let match;
-      while ((match = personRegex.exec(lineText)) !== null) {
-        people.add(match[2]);
-      }
-    }
-    return [...people].sort().map(person => new CompletionItem(person, CompletionItemKind.Value));
+    const tagRegex = new RegExp(/(?<=\s|^)(@)([\w\-\_]+)/, "g");
+    const incompleteTagRegex = new RegExp(/(?<=\s|^)(@)([\w\-\_]*)/, "g");
+    const matchGroup = 2;
+    return MetaDataProvideCompletionItemsHelper(
+      document,
+      position,
+      tagRegex,
+      incompleteTagRegex,
+      matchGroup
+    );
   }
 }
 
@@ -274,53 +306,86 @@ class MarkdownProjectCompletionProvider implements CompletionItemProvider {
     _token: CancellationToken,
     context: CompletionContext
   ) {
-    // regex to match tags
-    const tagRegex = new RegExp('(\\+)([\\w\\-\\_]+)', 'g');
-    const incompleteTagRegex = new RegExp('(\\+)([\\w\\-\\_]*)', 'g');
-    // get the range of the current tag autocomplete
-    const range = document.getWordRangeAtPosition(position, incompleteTagRegex);
-    // if not in a tag we're done
-    if (range === undefined) {
-      return undefined;
-    }
+    const tagRegex = new RegExp(/(?<=\s|^)(\+)([\w\-\_]+)/, "g");
+    const incompleteTagRegex = new RegExp(/(?<=\s|^)(\+)([\w\-\_]*)/, "g");
+    const matchGroup = 2;
+    return MetaDataProvideCompletionItemsHelper(
+      document,
+      position,
+      tagRegex,
+      incompleteTagRegex,
+      matchGroup
+    );
+  }
+}
 
-    const currentLineNumber = position.line;
-    const currentCharacterOffset = position.character;
-    const tags = new Set<string>();
-    // iterate over lines to create the set
-    for(let lineNumber = 0; lineNumber < document.lineCount; lineNumber++) {
-      const line = document.lineAt(lineNumber);
-      const lineText = lineNumber !== currentLineNumber ? line.text :
-        line.text.slice(0, range.start.character) + line.text.slice(range.end.character);
-      let match;
-      while ((match = tagRegex.exec(lineText)) !== null) {
-        tags.add(match[2]);
-      }
-    }
-    return [...tags].sort().map(tag => new CompletionItem(tag, CompletionItemKind.Value));
+class MarkdownTagCompletionProvider implements CompletionItemProvider {
+  public async provideCompletionItems(
+    document: TextDocument,
+    position: Position,
+    _token: CancellationToken,
+    context: CompletionContext
+  ) {
+    // regex to match tags
+    const tagRegex = new RegExp(/(?<=\s|^)(#[\w\-\_]+)/, "g");
+    const incompleteTagRegex = new RegExp(/(?<=\s|^)(#[\w\-\_]*)/, "g");
+    const matchGroup = 1;
+    return MetaDataProvideCompletionItemsHelper(
+      document,
+      position,
+      tagRegex,
+      incompleteTagRegex,
+      matchGroup
+    );
   }
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  console.debug('vscode-markdown-notes.activate');
-  const md = { scheme: 'file', language: 'markdown' };
-  vscode.languages.setLanguageConfiguration('markdown', { wordPattern: /([\#\.\/\\\w_]+)/ });
+  console.debug("vscode-markdown-notes.activate");
+  const md = { scheme: "file", language: "markdown" };
+  vscode.languages.setLanguageConfiguration("markdown", {
+    wordPattern: /([\#\.\/\\\w_]+)/
+  });
 
   // const triggerCharacters = ['.', '#'];
   // const triggerCharacters = [];
   context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(md, new MarkdownFileCompletionItemProvider())
+    vscode.languages.registerCompletionItemProvider(
+      md,
+      new MarkdownFileCompletionItemProvider()
+    )
   );
   context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(md, new MarkdownPersonCompletionItemProvider())
+    vscode.languages.registerCompletionItemProvider(
+      md,
+      new MarkdownPersonCompletionItemProvider(),
+      "@"
+    )
   );
   context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(md, new MarkdownProjectCompletionProvider())
+    vscode.languages.registerCompletionItemProvider(
+      md,
+      new MarkdownProjectCompletionProvider(),
+      "+"
+    )
   );
   context.subscriptions.push(
-    vscode.languages.registerDefinitionProvider(md, new MarkdownDefinitionProvider())
+    vscode.languages.registerCompletionItemProvider(
+      md,
+      new MarkdownTagCompletionProvider(),
+      "#"
+    )
+  );
+  context.subscriptions.push(
+    vscode.languages.registerDefinitionProvider(
+      md,
+      new MarkdownDefinitionProvider()
+    )
   );
 
-  let newNoteDisposable = vscode.commands.registerCommand('vscodeMarkdownNotes.newNote', newNote);
+  let newNoteDisposable = vscode.commands.registerCommand(
+    "vscodeMarkdownNotes.newNote",
+    newNote
+  );
   context.subscriptions.push(newNoteDisposable);
 }
