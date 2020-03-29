@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import { format, parse } from "path";
 import * as vscode from "vscode";
 import {
@@ -33,6 +34,7 @@ import {
     - 2. on any of the changes refresh the completions as necessary
 - move snippets to their own file
 - make code DRY
+- pick up autoocompletions for wiki links from file contents, not just file names.
 */
 
 class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
@@ -79,6 +81,33 @@ class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
   }
 }
 
+async function getFirstLine(pathToFile: string) {
+  const opts = {
+    encoding: "utf8",
+    lineEnding: "\n"
+  };
+  return new Promise<string>((resolve, reject) => {
+    const rs = fs.createReadStream(pathToFile, { encoding: opts.encoding });
+    let acc = "";
+    let pos = 0;
+    let index;
+    rs.on("data", chunk => {
+      index = chunk.indexOf(opts.lineEnding);
+      acc += chunk;
+      if (index === -1) {
+        pos += chunk.length;
+      } else {
+        pos += index;
+        rs.close();
+      }
+    })
+      .on("close", () =>
+        resolve(acc.slice(acc.charCodeAt(0) === 0xfeff ? 1 : 0, pos))
+      )
+      .on("error", err => reject(err));
+  });
+}
+
 class MarkdownFileCompletionItemProvider implements CompletionItemProvider {
   public async provideCompletionItems(
     document: TextDocument,
@@ -102,9 +131,19 @@ class MarkdownFileCompletionItemProvider implements CompletionItemProvider {
     const files = (await workspace.findFiles("**/*")).filter(
       f => f.scheme == "file" && f.path.match(/\.(md)/i)
     );
-    return files.map(
+
+    const names = await Promise.all(
+      files.map(async f => {
+        const firstLine = await getFirstLine(f.fsPath);
+        if (firstLine.startsWith("# ")) {
+          return firstLine.slice(2);
+        }
+        return parse(f.path).name;
+      })
+    );
+    return names.map(
       // parse and name gets just the name from the file path (i.e. index)
-      file => new CompletionItem(parse(file.path).name, CompletionItemKind.File)
+      name => new CompletionItem(name, CompletionItemKind.File)
     );
   }
 }
