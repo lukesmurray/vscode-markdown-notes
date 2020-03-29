@@ -1,32 +1,38 @@
+import { parse } from "path";
 import * as vscode from "vscode";
 import {
-  basename,
-  dirname,
-  join,
-  normalize,
-  relative,
-  resolve,
-  parse
-} from "path";
-import { existsSync, writeFileSync } from "fs";
-import {
-  CompletionItemProvider,
-  TextDocument,
-  Position,
   CancellationToken,
   CompletionContext,
-  workspace,
   CompletionItem,
   CompletionItemKind,
-  Uri
+  CompletionItemProvider,
+  Position,
+  TextDocument,
+  workspace
 } from "vscode";
 
 /* TODO(lukemurray): ideas
 - codelens for actions on links (https://code.visualstudio.com/api/references/vscode-api#CodeLens)
 - decorations for references inline (https://code.visualstudio.com/api/references/vscode-api#DecorationInstanceRenderOptions)
 - codeAction for missing wiki style links (https://code.visualstudio.com/api/references/vscode-api#CodeActionProvider)
+  - https://github.com/microsoft/vscode-extension-samples/tree/master/code-actions-sample
 - rename provider for links, tags, people, etc
 - document link provider for wiki links https://code.visualstudio.com/api/references/vscode-api#DocumentLink
+*/
+
+/* TODO(lukemurray): tasks
+- refactor autocomplete for people, tags, etc to search across all files in workspace
+- refactor completions to be lazy (this applies to file completions too)
+  - Events to be aware of
+    - onDidChangeTextDocument to search for changes (i.e. only in range that got replaced)
+    - onDidRenameFiles
+    - onDidDeleteFiles
+    - onDidCreateFiles
+  - basic model will be
+    - 1. on load get all the completions across the workspace
+    - 2. on any of the changes refresh the completions as necessary
+- move snippets to their own file
+- make code DRY
 */
 
 class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
@@ -44,7 +50,6 @@ class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
       return undefined;
     }
     const selectedWord = document.getText(range);
-    console.debug("selectedWord", selectedWord);
     const files = (await workspace.findFiles("**/*")).filter(
       f =>
         f.scheme == "file" &&
@@ -63,8 +68,11 @@ class MarkdownFileCompletionItemProvider implements CompletionItemProvider {
     _token: CancellationToken,
     context: CompletionContext
   ) {
-    const tagRegex = new RegExp(/(?<=(?:\s|^)\[\[)([\w\-\_]+)(\]\])/, "g");
-    const incompleteTagRegex = new RegExp(/(?<=(?:\s|^)\[\[)([\w\-\_]*)/, "g");
+    const tagRegex = new RegExp(/(?<=(?:\s|^)(\[\[))([\w\-\_]+)(?=\]\])/, "g");
+    const incompleteTagRegex = new RegExp(
+      /(?<=(?:\s|^)(\[\[))([\w\-\_]*)/,
+      "g"
+    );
     const matchGroup = 2;
     // get the range of the current tag autocomplete
     const range = document.getWordRangeAtPosition(position, incompleteTagRegex);
@@ -76,7 +84,6 @@ class MarkdownFileCompletionItemProvider implements CompletionItemProvider {
     const files = (await workspace.findFiles("**/*")).filter(
       f => f.scheme == "file" && f.path.match(/\.(md)/i)
     );
-    console.debug("found files", files);
     return files.map(
       // parse and name gets just the name from the file path (i.e. index)
       file => new CompletionItem(parse(file.path).name, CompletionItemKind.File)
@@ -97,6 +104,7 @@ function MetaDataCompletionItemProviderHelper(
   if (range === undefined) {
     return undefined;
   }
+  console.debug("doc text", document.getText(range));
 
   const currentLineNumber = position.line;
   const tags = new Set<string>();
@@ -118,6 +126,7 @@ function MetaDataCompletionItemProviderHelper(
   const hasWhiteSpaceAfter = /\s/.test(
     document.lineAt(range.end.line).text.charAt(range.end.character)
   );
+  console.debug("tags", [...tags]);
   return [...tags].sort().map(tag => {
     const completionItem = new CompletionItem(tag, CompletionItemKind.Value);
     completionItem.insertText = tag + (hasWhiteSpaceAfter ? "" : " ");
@@ -132,9 +141,9 @@ class MarkdownPersonCompletionItemProvider implements CompletionItemProvider {
     _token: CancellationToken,
     context: CompletionContext
   ) {
-    const tagRegex = new RegExp(/(?<=\s|^)(@)([\w\-\_]+)/, "g");
-    const incompleteTagRegex = new RegExp(/(?<=\s|^)(@)([\w\-\_]*)/, "g");
-    const matchGroup = 2;
+    const tagRegex = new RegExp(/(?<=\s|^)(@[\w\-\_]+)/, "g");
+    const incompleteTagRegex = new RegExp(/(?<=\s|^)(@[\w\-\_]*)/, "g");
+    const matchGroup = 1;
     return MetaDataCompletionItemProviderHelper(
       document,
       position,
@@ -152,9 +161,9 @@ class MarkdownProjectCompletionProvider implements CompletionItemProvider {
     _token: CancellationToken,
     context: CompletionContext
   ) {
-    const tagRegex = new RegExp(/(?<=\s|^)(\+)([\w\-\_]+)/, "g");
-    const incompleteTagRegex = new RegExp(/(?<=\s|^)(\+)([\w\-\_]*)/, "g");
-    const matchGroup = 2;
+    const tagRegex = new RegExp(/(?<=\s|^)(\+[\w\-\_]+)/, "g");
+    const incompleteTagRegex = new RegExp(/(?<=\s|^)(\+[\w\-\_]*)/, "g");
+    const matchGroup = 1;
     return MetaDataCompletionItemProviderHelper(
       document,
       position,
@@ -240,10 +249,9 @@ class MarkdownSnippetCompletionItemProvider implements CompletionItemProvider {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  console.debug("vscode-markdown-notes.activate");
   const md = { scheme: "file", language: "markdown" };
   vscode.languages.setLanguageConfiguration("markdown", {
-    wordPattern: /([\#\.\/\\\w_]+)/
+    wordPattern: /([\+\@\#\.\/\\\w]+)/
   });
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(
