@@ -41,7 +41,7 @@ class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
     position: vscode.Position,
     token: vscode.CancellationToken
   ) {
-    const tagRegex = new RegExp(/(?<=(?:\s|^)(\[\[))([\w\-\_]+)(?=\]\])/, "g");
+    const tagRegex = new RegExp(/(?<=(?:\s|^)(\[\[))([^\]\r\n]+)(?=\]\])/, "g");
     const matchGroup = 2;
     // get the range of the current tag autocomplete
     const range = document.getWordRangeAtPosition(position, tagRegex);
@@ -50,11 +50,16 @@ class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
       return undefined;
     }
     const selectedWord = document.getText(range);
+    const sluggedFileName = selectedWord
+      .replace(/[^\w\s-]/g, "") // Remove non-ASCII characters
+      .trim()
+      .replace(/\s+/g, "-") // Convert whitespace to hyphens
+      .toLowerCase();
     const files = (await workspace.findFiles("**/*")).filter(
       f =>
         f.scheme == "file" &&
         f.path.match(/\.(md)/i) &&
-        parse(f.path).name === selectedWord
+        parse(f.path).name === sluggedFileName
     );
     // TODO(lukemurray): should parametrize wiki path so wiki files can be edited even without a root path or when open in another project
     if (files.length === 0) {
@@ -62,11 +67,11 @@ class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
       const rootURI = workspace.workspaceFolders?.[0].uri;
       const newPath = format({
         dir: rootURI?.fsPath,
-        base: selectedWord + ".md"
+        base: sluggedFileName + ".md"
       });
       const newURI = vscode.Uri.file(newPath);
       // TODO(lukemurray): create initial content
-      await workspace.fs.writeFile(newURI, new Uint8Array());
+      await workspace.fs.writeFile(newURI, Buffer.from("# " + selectedWord));
       files.push(newURI);
     }
     const p = new vscode.Position(0, 0);
@@ -81,9 +86,9 @@ class MarkdownFileCompletionItemProvider implements CompletionItemProvider {
     _token: CancellationToken,
     context: CompletionContext
   ) {
-    const tagRegex = new RegExp(/(?<=(?:\s|^)(\[\[))([\w\-\_]+)(?=\]\])/, "g");
+    const tagRegex = new RegExp(/(?<=(?:\s|^)(\[\[))([^\]\r\n]+)(?=\]\])/, "g");
     const incompleteTagRegex = new RegExp(
-      /(?<=(?:\s|^)(\[\[))([\w\-\_]*)/,
+      /(?<=(?:\s|^)(\[\[))([^\]\r\n]*)/,
       "g"
     );
     const matchGroup = 2;
@@ -225,21 +230,21 @@ class MarkdownSnippetCompletionItemProvider implements CompletionItemProvider {
     );
     const dateSnippet = new vscode.CompletionItem("date");
     dateSnippet.insertText = new vscode.SnippetString(
-      "// $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE\n\n$0"
+      "# $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE\n\n$0"
     );
     dateSnippet.documentation = new vscode.MarkdownString(
       "Insert the current date"
     );
     const meetingSnippet = new vscode.CompletionItem("meeting");
     meetingSnippet.insertText = new vscode.SnippetString(
-      "// MEETING $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE ${1:about what} with ${2:@who} \n\n$0"
+      "[[$CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE Meeting ${1:about} $0]]"
     );
     meetingSnippet.documentation = new vscode.MarkdownString(
       "Insert a new meeting"
     );
     const memoSnippet = new vscode.CompletionItem("memo");
     memoSnippet.insertText = new vscode.SnippetString(
-      "// MEMO $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE ${1:about what}\n\n$0"
+      "[[$CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE Memo ${1:about} $0]]"
     );
     memoSnippet.documentation = new vscode.MarkdownString("Insert a new memo");
     const dueSnippet = new vscode.CompletionItem("due");
