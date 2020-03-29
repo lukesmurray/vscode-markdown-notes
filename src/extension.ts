@@ -340,6 +340,59 @@ class MarkdownTagCompletionProvider implements CompletionItemProvider {
   }
 }
 
+class MarkdownSnippetCompletionItemProvider implements CompletionItemProvider {
+  public async provideCompletionItems(
+    document: TextDocument,
+    position: Position,
+    _token: CancellationToken,
+    context: CompletionContext
+  ) {
+    const taskSnippet = new vscode.CompletionItem("task");
+    taskSnippet.insertText = new vscode.SnippetString(
+      "- [ ] ${1:What do you want to do?} ${2:+project} est:${3:30m} took:- added:$CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE id:$RANDOM_HEX"
+    );
+    taskSnippet.documentation = new vscode.MarkdownString("Create a new task.");
+    const randomSnippet = new vscode.CompletionItem("random");
+    randomSnippet.insertText = new vscode.SnippetString("$RANDOM_HEX");
+    randomSnippet.documentation = new vscode.MarkdownString(
+      "Insert a random value. (random hex)"
+    );
+    const dateSnippet = new vscode.CompletionItem("date");
+    dateSnippet.insertText = new vscode.SnippetString(
+      "// $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE\n\n$0"
+    );
+    dateSnippet.documentation = new vscode.MarkdownString(
+      "Insert the current date"
+    );
+    const meetingSnippet = new vscode.CompletionItem("meeting");
+    meetingSnippet.insertText = new vscode.SnippetString(
+      "// MEETING $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE ${1:about what} with ${2:@who} \n\n$0"
+    );
+    meetingSnippet.documentation = new vscode.MarkdownString(
+      "Insert a new meeting"
+    );
+    const memoSnippet = new vscode.CompletionItem("memo");
+    memoSnippet.insertText = new vscode.SnippetString(
+      "// MEMO $CURRENT_YEAR-$CURRENT_MONTH-$CURRENT_DATE ${1:about what}\n\n$0"
+    );
+    memoSnippet.documentation = new vscode.MarkdownString("Insert a new memo");
+    const dueSnippet = new vscode.CompletionItem("due");
+    dueSnippet.insertText = new vscode.SnippetString(
+      "due:${1:$CURRENT_YEAR}-${2:$CURRENT_MONTH}-${3:$CURRENT_DATE}"
+    );
+    dueSnippet.documentation = new vscode.MarkdownString("Insert a due datee");
+
+    return [
+      taskSnippet,
+      randomSnippet,
+      dateSnippet,
+      meetingSnippet,
+      memoSnippet,
+      dueSnippet
+    ];
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   console.debug("vscode-markdown-notes.activate");
   const md = { scheme: "file", language: "markdown" };
@@ -353,6 +406,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.languages.registerCompletionItemProvider(
       md,
       new MarkdownFileCompletionItemProvider()
+    )
+  );
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      md,
+      new MarkdownSnippetCompletionItemProvider()
     )
   );
   context.subscriptions.push(
