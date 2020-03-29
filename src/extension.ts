@@ -1,4 +1,4 @@
-import { parse } from "path";
+import { format, parse } from "path";
 import * as vscode from "vscode";
 import {
   CancellationToken,
@@ -56,8 +56,21 @@ class MarkdownDefinitionProvider implements vscode.DefinitionProvider {
         f.path.match(/\.(md)/i) &&
         parse(f.path).name === selectedWord
     );
+    // TODO(lukemurray): should parametrize wiki path so wiki files can be edited even without a root path or when open in another project
+    if (files.length === 0) {
+      // undefined in root path is undefined
+      const rootURI = workspace.workspaceFolders?.[0].uri;
+      const newPath = format({
+        dir: rootURI?.fsPath,
+        base: selectedWord + ".md"
+      });
+      const newURI = vscode.Uri.file(newPath);
+      // TODO(lukemurray): create initial content
+      await workspace.fs.writeFile(newURI, new Uint8Array());
+      files.push(newURI);
+    }
     const p = new vscode.Position(0, 0);
-    return files.map(f => new vscode.Location(f, p));
+    return new vscode.Location(files[0], p);
   }
 }
 
@@ -104,7 +117,6 @@ function MetaDataCompletionItemProviderHelper(
   if (range === undefined) {
     return undefined;
   }
-  console.debug("doc text", document.getText(range));
 
   const currentLineNumber = position.line;
   const tags = new Set<string>();
@@ -126,7 +138,6 @@ function MetaDataCompletionItemProviderHelper(
   const hasWhiteSpaceAfter = /\s/.test(
     document.lineAt(range.end.line).text.charAt(range.end.character)
   );
-  console.debug("tags", [...tags]);
   return [...tags].sort().map(tag => {
     const completionItem = new CompletionItem(tag, CompletionItemKind.Value);
     completionItem.insertText = tag + (hasWhiteSpaceAfter ? "" : " ");
