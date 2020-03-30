@@ -5,7 +5,7 @@ import {
   getWorkspaceMarkdownDocuments,
   getWorkspaceMarkdownFiles,
   processDocumentLineByLine,
-  processLineByLine,
+  processFileLineByLine,
   readFirstLine
 } from "./util";
 
@@ -194,7 +194,7 @@ export class MarkdownCompletionProvider
       outputMatches
     );
     await Promise.all(
-      files.map(file => processLineByLine(file, matchingStrategy))
+      files.map(file => processFileLineByLine(file, matchingStrategy))
     );
     await Promise.all(
       openDocuments.map(document =>

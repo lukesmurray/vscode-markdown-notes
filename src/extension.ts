@@ -16,7 +16,7 @@ import { MarkdownSnippetCompletionItemProvider } from "./snippets";
 */
 
 /* TODO(lukemurray): tasks
-- refactor completions to be lazy (this applies to file completions too)
+- refactor completions to be lazy
   - Events to be aware of
     - onDidChangeTextDocument to search for changes (i.e. only in range that got replaced)
     - onDidRenameFiles
@@ -26,7 +26,6 @@ import { MarkdownSnippetCompletionItemProvider } from "./snippets";
     - 1. on load get all the completions across the workspace
     - 2. on any of the changes refresh the completions as necessary
 - make code DRY
-- pick up autoocompletions for wiki links from file contents, not just file names.
 */
 
 export function activate(context: vscode.ExtensionContext) {

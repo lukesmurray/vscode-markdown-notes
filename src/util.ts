@@ -45,7 +45,7 @@ export async function readFirstLine(fileUri: vscode.Uri) {
  * @param fileUri the uri of the file to process lines from
  * @param callback callback called on each line of the file, the first argument is the line as a string.
  */
-export async function processLineByLine(
+export async function processFileLineByLine(
   fileUri: vscode.Uri,
   callback: (line: string, lineNumber: number) => void
 ) {
@@ -63,6 +63,11 @@ export async function processLineByLine(
   await once(rl, "close");
 }
 
+/**
+ * Process each line of a document. Returns when entire file has been processed
+ * @param document the vscode document to process
+ * @param callback callback called on each line of the file, the first argument is the line as a string.
+ */
 export async function processDocumentLineByLine(
   document: vscode.TextDocument,
   callback: (line: string, lineNumber: number) => void
@@ -73,6 +78,13 @@ export async function processDocumentLineByLine(
   }
 }
 
+/**
+ * Create a strategy to pass into processDocumentLineByLine and processFileLineByLine
+ * @param regex a regex to match a piece of text from a line
+ * @param matchGroup the number of the match group which contains the text to add to output matches
+ * @param outputMatches a list passed by reference used to store matches found in the processed lines
+ * @param omit the vscode range of text to omit from matching
+ */
 export function extractMatchesLineProcessingStrategy(
   regex: RegExp,
   matchGroup: number,
@@ -91,12 +103,18 @@ export function extractMatchesLineProcessingStrategy(
   };
 }
 
+/**
+ * get all the markdown files from the workspace
+ */
 export async function getWorkspaceMarkdownFiles() {
   return (await vscode.workspace.findFiles("**/*")).filter(
     f => f.scheme == "file" && f.path.match(/\.(md)$/i)
   );
 }
 
+/**
+ * get all the open markdown documents from the workspace
+ */
 export async function getWorkspaceMarkdownDocuments() {
   return vscode.workspace.textDocuments.filter(f =>
     f.fileName.match(/\.(md)$/i)
