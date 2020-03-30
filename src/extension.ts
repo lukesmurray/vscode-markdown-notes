@@ -31,7 +31,7 @@ import { MarkdownSnippetCompletionItemProvider } from "./snippets";
 export function activate(context: vscode.ExtensionContext) {
   const md = { scheme: "file", language: "markdown" };
   vscode.languages.setLanguageConfiguration("markdown", {
-    wordPattern: /([\+\@\#\.\/\\\w]+)/
+    wordPattern: /([\+\@\#\.\/\\\-\w]+)/
   });
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(
